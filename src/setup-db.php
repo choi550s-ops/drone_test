@@ -34,7 +34,7 @@ $sql_users = "CREATE TABLE IF NOT EXISTS {$prefix}users (
 $sql_sessions = "CREATE TABLE IF NOT EXISTS {$prefix}sessions (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
-  token VARCHAR(255) UNIQUE NOT NULL,
+  token VARCHAR(191) UNIQUE NOT NULL,
   expires_at TIMESTAMP NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES {$prefix}users(id) ON DELETE CASCADE,
