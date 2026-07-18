@@ -20,7 +20,8 @@ define('SESSION_TIMEOUT', 86400 * 7); // 7일
 define('PASSING_SCORE', 70); // 합격선
 
 // ========== 경로 설정 ==========
-define('BASE_URL', 'http://staff4.cafe24.com/dronetest/');
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+define('BASE_URL', $protocol . 'staff4.cafe24.com/dronetest/');
 define('API_URL', BASE_URL . 'api.php');
 
 // ========== 오류 로깅 ==========
