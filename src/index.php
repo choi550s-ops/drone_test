@@ -465,6 +465,11 @@
       color: #e65100;
     }
 
+    .badge-pastexam {
+      background: #ffebee;
+      color: #c62828;
+    }
+
     .browse-item .b-question {
       font-weight: bold;
       color: #333;
@@ -705,7 +710,10 @@
           <option value="">전체 카테고리</option>
         </select>
         <label style="font-size: 14px; color: #555;">
-          <input type="checkbox" id="browseFrequentOnly" onchange="renderBrowseList()"> 빈출만 보기
+          <input type="checkbox" id="browsePastExamOnly" onchange="renderBrowseList()"> 📌 기출만
+        </label>
+        <label style="font-size: 14px; color: #555;">
+          <input type="checkbox" id="browseFrequentOnly" onchange="renderBrowseList()"> ⭐ 빈출만
         </label>
         <input type="text" id="browseSearch" placeholder="키워드 검색..." oninput="renderBrowseList()" style="flex: 1; min-width: 180px;">
         <span id="browseCount" style="color: #999; font-size: 13px;"></span>
@@ -879,7 +887,12 @@
     function displayQuestion() {
       const question = quizData[currentQuestionIndex];
       document.getElementById('currentQuestion').textContent = currentQuestionIndex + 1;
-      document.getElementById('questionText').textContent = question.question;
+
+      let badges = '';
+      if (question.pastExam) badges += '<span class="badge badge-pastexam">📌 기출</span> ';
+      if (question.frequent) badges += '<span class="badge badge-frequent">⭐ 빈출</span> ';
+      document.getElementById('questionText').innerHTML =
+        (badges ? '<div style="margin-bottom: 8px;">' + badges + '</div>' : '') + escapeHtml(question.question);
       document.getElementById('loadingQuiz').style.display = 'none';
       document.getElementById('quizContent').style.display = 'block';
 
@@ -1228,11 +1241,13 @@
 
       const category = document.getElementById('browseCategoryFilter').value;
       const frequentOnly = document.getElementById('browseFrequentOnly').checked;
+      const pastExamOnly = document.getElementById('browsePastExamOnly').checked;
       const keyword = document.getElementById('browseSearch').value.trim().toLowerCase();
 
       let filtered = allQuestionsCache;
       if (category) filtered = filtered.filter(q => q.category === category);
       if (frequentOnly) filtered = filtered.filter(q => q.frequent);
+      if (pastExamOnly) filtered = filtered.filter(q => q.pastExam);
       if (keyword) {
         filtered = filtered.filter(q =>
           q.question.toLowerCase().includes(keyword) ||
@@ -1252,6 +1267,7 @@
         <div class="browse-item">
           <div class="b-meta">
             <span class="badge badge-category">${escapeHtml(q.category)}</span>
+            ${q.pastExam ? '<span class="badge badge-pastexam">📌 기출</span>' : ''}
             ${q.frequent ? '<span class="badge badge-frequent">⭐ 빈출</span>' : ''}
           </div>
           <div class="b-question">${escapeHtml(q.question)}</div>
