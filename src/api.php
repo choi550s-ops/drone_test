@@ -6,6 +6,10 @@
 require_once 'config.php';
 require_once 'db.php';
 
+header('Content-Type: application/json; charset=utf-8');
+header('X-Frame-Options: SAMEORIGIN');
+header('X-Content-Type-Options: nosniff');
+
 $request_method = $_SERVER['REQUEST_METHOD'];
 $request_uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $action = isset($_GET['action']) ? $_GET['action'] : '';

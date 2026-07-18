@@ -34,11 +34,6 @@ if (!is_dir(__DIR__ . '/logs')) {
   mkdir(__DIR__ . '/logs', 0755, true);
 }
 
-// ========== 헤더 설정 ==========
-header('Content-Type: application/json; charset=utf-8');
-header('X-Frame-Options: SAMEORIGIN');
-header('X-Content-Type-Options: nosniff');
-
 // ========== 타임존 설정 ==========
 date_default_timezone_set('Asia/Seoul');
 
