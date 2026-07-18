@@ -4,7 +4,7 @@
     "exam": "드론 1종(조종사) 학과시험",
     "totalQuestions": 189,
     "passingScore": 70,
-    "timeLimit": 60,
+    "timeLimit": 50,
     "categories": [
       "항공법규",
       "기체학",
@@ -14,7 +14,9 @@
       "전자/통신",
       "기상학"
     ],
-    "note": "항공안전법·항공기상·항공역학·비행운용이론 실제 출제범위 기준으로 검수됨. frequent=true는 여러 공식/공개 자료에서 공통적으로 강조되는 핵심 빈출 유형입니다."
+    "note": "항공안전법·항공기상·항공역학·비행운용이론 실제 출제범위 기준으로 검수됨. frequent=true는 여러 공식/공개 자료에서 공통적으로 강조되는 핵심 빈출 유형입니다.",
+    "examQuestions": 40,
+    "pointsPerQuestion": 2.5
   },
   "questions": [
     {

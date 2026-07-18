@@ -612,10 +612,10 @@
           <div class="description">10문제 무작위 풀이</div>
         </div>
 
-        <div class="menu-item" onclick="startQuiz('random', 30)">
+        <div class="menu-item" onclick="startQuiz('exam', 40)">
           <div class="icon">📚</div>
-          <div class="title">온전한 시험</div>
-          <div class="description">30문제 무작위 풀이</div>
+          <div class="title">실전 모의고사</div>
+          <div class="description">40문제 · 50분 · 70점 합격 (실제 CBT 방식)</div>
         </div>
 
         <div class="menu-item" onclick="startQuiz('weak')">
@@ -806,6 +806,7 @@
     // ========== 문제풀이 ==========
     let gradedResults = {};
     let bookmarkIds = new Set();
+    let currentQuizType = 'random';
 
     async function startQuiz(type, count, category) {
       try {
@@ -863,7 +864,10 @@
 
         document.getElementById('quizTitle').textContent =
           category ? ('🗂️ ' + category) :
-          (type === 'random' ? '모의고사' : type === 'weak' ? '⚠️ 약점 복습' : '⭐ 즐겨찾기');
+          (type === 'exam' ? '📚 실전 모의고사 (40문제·70점 합격)' :
+           type === 'random' ? '모의고사' : type === 'weak' ? '⚠️ 약점 복습' : '⭐ 즐겨찾기');
+
+        currentQuizType = type;
 
         displayQuestion();
         startTimer();
@@ -992,9 +996,40 @@
         currentQuestionIndex++;
         displayQuestion();
       } else {
-        if (confirm('학습을 마치고 대시보드로 돌아가시겠습니까?')) {
+        showQuizResult();
+      }
+    }
+
+    function showQuizResult() {
+      const total = quizData.length;
+      const gradedCount = Object.keys(gradedResults).length;
+      const correctCount = Object.values(gradedResults).filter(r => r.is_correct).length;
+
+      let message;
+      if (currentQuizType === 'exam' && total === 40) {
+        // 실제 CBT 방식: 40문제 x 2.5점 = 100점 만점, 70점 이상 합격
+        const score = correctCount * 2.5;
+        const passed = score >= 70;
+        message = '📋 실전 모의고사 결과\n\n' +
+          '풀이한 문제: ' + gradedCount + ' / ' + total + '\n' +
+          '정답: ' + correctCount + '문제\n' +
+          '점수: ' + score + '점 / 100점 (문항당 2.5점)\n\n' +
+          (passed ? '🎉 합격입니다! (70점 이상)' : '❌ 불합격입니다. (합격 기준 70점 = 28문제 이상)');
+      } else {
+        const pct = gradedCount > 0 ? Math.round((correctCount / gradedCount) * 100) : 0;
+        message = '📋 학습 결과\n\n' +
+          '풀이한 문제: ' + gradedCount + ' / ' + total + '\n' +
+          '정답: ' + correctCount + '문제 (' + pct + '%)';
+      }
+
+      if (gradedCount < total) {
+        message += '\n\n※ 아직 풀지 않은 문제가 ' + (total - gradedCount) + '개 있습니다. 계속 풀려면 [취소]를 누르세요.';
+        if (confirm(message + '\n\n대시보드로 돌아가시겠습니까?')) {
           goToDashboard();
         }
+      } else {
+        alert(message);
+        goToDashboard();
       }
     }
 
@@ -1043,15 +1078,40 @@
 
     function startTimer() {
       clearInterval(timerInterval);
-      let seconds = 0;
 
-      timerInterval = setInterval(() => {
-        seconds++;
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        document.getElementById('timer').textContent =
-          String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
-      }, 1000);
+      if (currentQuizType === 'exam') {
+        // 실전 모의고사: 실제 CBT와 동일하게 50분 카운트다운
+        let remaining = 50 * 60;
+        renderTimer(remaining);
+
+        timerInterval = setInterval(() => {
+          remaining--;
+          renderTimer(remaining);
+
+          if (remaining === 300) {
+            alert('⏰ 남은 시간 5분입니다!');
+          }
+          if (remaining <= 0) {
+            clearInterval(timerInterval);
+            alert('⏰ 시험 시간(50분)이 종료되었습니다. 결과를 확인합니다.');
+            showQuizResult();
+          }
+        }, 1000);
+      } else {
+        let seconds = 0;
+        timerInterval = setInterval(() => {
+          seconds++;
+          renderTimer(seconds);
+        }, 1000);
+      }
+    }
+
+    function renderTimer(totalSeconds) {
+      if (totalSeconds < 0) totalSeconds = 0;
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = totalSeconds % 60;
+      document.getElementById('timer').textContent =
+        String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
     }
 
     function goToDashboard() {
