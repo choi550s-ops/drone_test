@@ -31,7 +31,7 @@ jobs:
           remote-user: ${{ secrets.FTP_USER }}
           remote-password: ${{ secrets.FTP_PASSWORD }}
           local-path: ./src/
-          remote-path: /www/dronetest/
+          remote-path: /public_html/www/dronetest/
           sync: delta
           ftp-options: --timeout=600
 
