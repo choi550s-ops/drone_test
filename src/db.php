@@ -107,75 +107,45 @@ class Database {
   }
 
   /**
-   * 범주별 통계
+   * 문제별(problem_id별) 풀이 통계 - 각 문제의 최신 시도가 아니라 전체 시도 누적 기준
+   * 카테고리 매핑은 data.json 기준으로 호출부(api.php)에서 수행한다.
    */
-  public function get_category_stats($user_id) {
+  public function get_problem_stats($user_id) {
     $sql = "SELECT
-              '항공법규' as category,
+              problem_id,
               COUNT(*) as total,
               SUM(CASE WHEN selected_answer = correct_answer THEN 1 ELSE 0 END) as correct
-            FROM {$this->prefix}attempts a
-            WHERE a.user_id = ? AND a.problem_id IN (1,2,3,4,5,6,7,8,9,10,81,82,90)
+            FROM {$this->prefix}attempts
+            WHERE user_id = ?
+            GROUP BY problem_id";
 
-            UNION ALL
-
-            SELECT
-              '기체학' as category,
-              COUNT(*) as total,
-              SUM(CASE WHEN selected_answer = correct_answer THEN 1 ELSE 0 END) as correct
-            FROM {$this->prefix}attempts a
-            WHERE a.user_id = ? AND a.problem_id IN (11,12,13,14,15,16,17,18,19,20,51,84,89)
-
-            UNION ALL
-
-            SELECT
-              '비행원리' as category,
-              COUNT(*) as total,
-              SUM(CASE WHEN selected_answer = correct_answer THEN 1 ELSE 0 END) as correct
-            FROM {$this->prefix}attempts a
-            WHERE a.user_id = ? AND a.problem_id IN (21,22,23,24,25,26,27,28,83)
-
-            UNION ALL
-
-            SELECT
-              '안전관리' as category,
-              COUNT(*) as total,
-              SUM(CASE WHEN selected_answer = correct_answer THEN 1 ELSE 0 END) as correct
-            FROM {$this->prefix}attempts a
-            WHERE a.user_id = ? AND a.problem_id IN (29,30,31,32,33,34,35,36,37,38,88)
-
-            UNION ALL
-
-            SELECT
-              '기체정비' as category,
-              COUNT(*) as total,
-              SUM(CASE WHEN selected_answer = correct_answer THEN 1 ELSE 0 END) as correct
-            FROM {$this->prefix}attempts a
-            WHERE a.user_id = ? AND a.problem_id IN (39,40,41,42,43,44,45,51,88,89)
-
-            UNION ALL
-
-            SELECT
-              '전자/통신' as category,
-              COUNT(*) as total,
-              SUM(CASE WHEN selected_answer = correct_answer THEN 1 ELSE 0 END) as correct
-            FROM {$this->prefix}attempts a
-            WHERE a.user_id = ? AND a.problem_id IN (46,47,48,49,50,85)
-
-            UNION ALL
-
-            SELECT
-              '기상학' as category,
-              COUNT(*) as total,
-              SUM(CASE WHEN selected_answer = correct_answer THEN 1 ELSE 0 END) as correct
-            FROM {$this->prefix}attempts a
-            WHERE a.user_id = ? AND a.problem_id IN (52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,86,87)";
-
-    $stmt = $this->conn->prepare($sql);
-    $stmt->bind_param('iiiiiii', $user_id, $user_id, $user_id, $user_id, $user_id, $user_id, $user_id);
-    $stmt->execute();
-
+    $stmt = $this->query($sql, 'i', [$user_id]);
     return $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+  }
+
+  /**
+   * 약점 문제(가장 최근 시도가 오답인 문제) ID 목록
+   */
+  public function get_weak_problem_ids($user_id) {
+    $sql = "SELECT a.problem_id
+            FROM {$this->prefix}attempts a
+            INNER JOIN (
+              SELECT problem_id, MAX(id) as max_id
+              FROM {$this->prefix}attempts
+              WHERE user_id = ?
+              GROUP BY problem_id
+            ) latest ON a.problem_id = latest.problem_id AND a.id = latest.max_id
+            WHERE a.user_id = ? AND a.selected_answer <> a.correct_answer";
+
+    $stmt = $this->query($sql, 'ii', [$user_id, $user_id]);
+    $result = $stmt->get_result();
+
+    $ids = [];
+    while ($row = $result->fetch_assoc()) {
+      $ids[] = (int)$row['problem_id'];
+    }
+
+    return $ids;
   }
 
   /**

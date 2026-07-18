@@ -193,6 +193,79 @@ if ($action === 'random_quiz' && $request_method === 'GET') {
   ], 'Quiz generated');
 }
 
+/**
+ * 약점 복습 문제: GET /api.php?action=weak_review&token=...
+ * 가장 최근 시도가 오답이었던 문제들만 모아서 반환
+ */
+if ($action === 'weak_review' && $request_method === 'GET') {
+  $token = $_GET['token'] ?? null;
+
+  if (!$token) {
+    error_response('인증 토큰이 필요합니다', 401);
+  }
+
+  $user = $db->verify_session($token);
+  if (!$user) {
+    error_response('유효하지 않은 세션입니다', 401);
+  }
+
+  $weak_ids = $db->get_weak_problem_ids($user['id']);
+
+  $selected = array_values(array_filter($questions, function($q) use ($weak_ids) {
+    return in_array($q['id'], $weak_ids);
+  }));
+
+  shuffle($selected);
+
+  // 정답 관련 필드 제거 (직접 풀어본 후 채점하도록)
+  $selected = array_map(function($q) {
+    unset($q['correct'], $q['explanation'], $q['keywords']);
+    return $q;
+  }, $selected);
+
+  success_response([
+    'quiz_id' => 'weak-' . time(),
+    'count' => count($selected),
+    'questions' => $selected
+  ], 'Weak review quiz generated');
+}
+
+/**
+ * 즐겨찾기 문제 풀이: GET /api.php?action=bookmark_quiz&token=...
+ * 즐겨찾기한 문제들을 퀴즈 형태(정답 비공개)로 반환
+ */
+if ($action === 'bookmark_quiz' && $request_method === 'GET') {
+  $token = $_GET['token'] ?? null;
+
+  if (!$token) {
+    error_response('인증 토큰이 필요합니다', 401);
+  }
+
+  $user = $db->verify_session($token);
+  if (!$user) {
+    error_response('유효하지 않은 세션입니다', 401);
+  }
+
+  $bookmark_ids = $db->get_bookmarks($user['id']);
+
+  $selected = array_values(array_filter($questions, function($q) use ($bookmark_ids) {
+    return in_array($q['id'], $bookmark_ids);
+  }));
+
+  shuffle($selected);
+
+  $selected = array_map(function($q) {
+    unset($q['correct'], $q['explanation'], $q['keywords']);
+    return $q;
+  }, $selected);
+
+  success_response([
+    'quiz_id' => 'bookmark-' . time(),
+    'count' => count($selected),
+    'questions' => $selected
+  ], 'Bookmark quiz generated');
+}
+
 // ==================== 풀이 기록 API ====================
 
 /**
@@ -258,19 +331,35 @@ if ($action === 'stats' && $request_method === 'GET') {
   }
 
   $stats = $db->get_user_stats($user['id']);
-  $category_stats = $db->get_category_stats($user['id']);
+  $problem_stats = $db->get_problem_stats($user['id']);
 
   $accuracy = $stats['total_attempts'] > 0
     ? round(($stats['correct_count'] / $stats['total_attempts']) * 100, 1)
     : 0;
 
+  // problem_id -> category 매핑 (data.json 기준, 문제가 추가/변경되어도 항상 최신 반영)
+  $id_to_category = [];
+  foreach ($questions as $q) {
+    $id_to_category[$q['id']] = $q['category'];
+  }
+
+  $category_totals = [];
+  foreach ($problem_stats as $row) {
+    $cat = $id_to_category[$row['problem_id']] ?? '기타';
+    if (!isset($category_totals[$cat])) {
+      $category_totals[$cat] = ['total' => 0, 'correct' => 0];
+    }
+    $category_totals[$cat]['total'] += (int)$row['total'];
+    $category_totals[$cat]['correct'] += (int)$row['correct'];
+  }
+
   $category_accuracy = [];
-  foreach ($category_stats as $cat) {
-    if ($cat['total'] > 0) {
-      $category_accuracy[$cat['category']] = [
-        'total' => $cat['total'],
-        'correct' => $cat['correct'],
-        'accuracy' => round(($cat['correct'] / $cat['total']) * 100, 1)
+  foreach ($category_totals as $cat => $vals) {
+    if ($vals['total'] > 0) {
+      $category_accuracy[$cat] = [
+        'total' => $vals['total'],
+        'correct' => $vals['correct'],
+        'accuracy' => round(($vals['correct'] / $vals['total']) * 100, 1)
       ];
     }
   }

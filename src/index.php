@@ -665,10 +665,13 @@
 
       <div id="quizContent" style="display: none;">
         <div class="quiz-question">
-          <div class="text" id="questionText"></div>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+            <div class="text" id="questionText" style="flex: 1;"></div>
+            <button class="btn" id="bookmarkBtn" onclick="toggleBookmark()" style="background: none; font-size: 26px; padding: 0 5px; line-height: 1;" title="즐겨찾기">☆</button>
+          </div>
           <div class="options" id="optionsContainer"></div>
           <div class="explanation" id="explanation">
-            <h4>💡 해설</h4>
+            <h4 id="explanationHeader">💡 해설</h4>
             <p id="explanationText"></p>
             <p style="margin-top: 10px; font-size: 12px; color: #999;" id="keywordsText"></p>
           </div>
@@ -676,8 +679,7 @@
 
         <div class="quiz-controls">
           <button class="btn btn-secondary" onclick="previousQuestion()" id="prevBtn">← 이전</button>
-          <button class="btn btn-primary" id="submitBtn" onclick="submitAnswer()">제출</button>
-          <button class="btn btn-secondary" onclick="nextQuestion()" id="nextBtn">다음 →</button>
+          <button class="btn btn-primary" onclick="nextQuestion()" id="nextBtn">다음 →</button>
         </div>
       </div>
     </div>
@@ -802,11 +804,21 @@
     }
 
     // ========== 문제풀이 ==========
+    let gradedResults = {};
+    let bookmarkIds = new Set();
+
     async function startQuiz(type, count, category) {
       try {
-        let url = API_URL + '?action=random_quiz&count=' + count;
-        if (category) {
-          url += '&category=' + encodeURIComponent(category);
+        let url;
+        if (type === 'weak') {
+          url = API_URL + '?action=weak_review&token=' + encodeURIComponent(currentToken);
+        } else if (type === 'bookmarks') {
+          url = API_URL + '?action=bookmark_quiz&token=' + encodeURIComponent(currentToken);
+        } else {
+          url = API_URL + '?action=random_quiz&count=' + count;
+          if (category) {
+            url += '&category=' + encodeURIComponent(category);
+          }
         }
 
         const response = await fetch(url);
@@ -817,9 +829,30 @@
           return;
         }
 
+        if (data.data.questions.length === 0) {
+          if (type === 'weak') {
+            alert('아직 틀린 문제가 없습니다. 모의고사를 먼저 풀어보세요!');
+          } else if (type === 'bookmarks') {
+            alert('즐겨찾기한 문제가 없습니다. 문제 풀이 중 ☆ 버튼으로 추가해보세요!');
+          } else {
+            alert('해당 조건의 문제가 없습니다.');
+          }
+          return;
+        }
+
+        // 즐겨찾기 상태 로드 (문제 화면에서 별 표시용)
+        try {
+          const bmRes = await fetch(API_URL + '?action=get_bookmarks&token=' + encodeURIComponent(currentToken));
+          const bmData = await bmRes.json();
+          if (bmData.success) {
+            bookmarkIds = new Set(bmData.data.questions.map(q => q.id));
+          }
+        } catch (e) { /* 무시: 즐겨찾기 표시만 안 될 뿐 퀴즈는 진행 */ }
+
         quizData = data.data.questions;
         currentQuestionIndex = 0;
         answers = {};
+        gradedResults = {};
         quizStartTime = Date.now();
 
         document.getElementById('dashboard').style.display = 'none';
@@ -830,7 +863,7 @@
 
         document.getElementById('quizTitle').textContent =
           category ? ('🗂️ ' + category) :
-          (type === 'random' ? '모의고사' : type === 'weak' ? '약점 복습' : '즐겨찾기');
+          (type === 'random' ? '모의고사' : type === 'weak' ? '⚠️ 약점 복습' : '⭐ 즐겨찾기');
 
         displayQuestion();
         startTimer();
@@ -849,11 +882,13 @@
       const optionsContainer = document.getElementById('optionsContainer');
       optionsContainer.innerHTML = '';
 
+      const already = gradedResults[currentQuestionIndex];
+
       Object.entries(question.options).forEach(([key, value]) => {
         const option = document.createElement('label');
         option.className = 'option';
         option.innerHTML = `
-          <input type="radio" name="answer" value="${key}" onchange="selectAnswer('${key}')">
+          <input type="radio" name="answer" value="${key}" onchange="selectAnswer('${key}')" ${already ? 'disabled' : ''}>
           <strong>${key}.</strong> ${value}
         `;
         optionsContainer.appendChild(option);
@@ -861,26 +896,35 @@
 
       document.getElementById('explanation').classList.remove('show');
 
-      // 이전 답변이 있으면 선택
+      // 이전에 선택한 답이 있으면 표시
       if (answers[currentQuestionIndex]) {
         const radio = document.querySelector(`input[value="${answers[currentQuestionIndex]}"]`);
         if (radio) radio.checked = true;
       }
 
+      // 이미 채점된 문제면 즉시 해설/정오답 표시 복원
+      if (already) {
+        showExplanation(already);
+      }
+
+      updateBookmarkStar(question.id);
       updateButtonStates();
     }
 
     function selectAnswer(value) {
+      // 이미 채점된 문제는 재선택 불가 (즉시채점 방식)
+      if (gradedResults[currentQuestionIndex]) return;
+
       answers[currentQuestionIndex] = value;
+
+      // 라디오 버튼 즉시 비활성화 후 자동 채점
+      document.querySelectorAll('#optionsContainer input[type="radio"]').forEach(r => r.disabled = true);
+      submitAnswer();
     }
 
     async function submitAnswer() {
       const answer = answers[currentQuestionIndex];
-
-      if (!answer) {
-        alert('답을 선택하세요');
-        return;
-      }
+      if (!answer) return;
 
       const question = quizData[currentQuestionIndex];
       const timeTaken = Math.round((Date.now() - quizStartTime) / 1000);
@@ -900,25 +944,39 @@
         const data = await response.json();
 
         if (data.success) {
+          gradedResults[currentQuestionIndex] = data.data;
           showExplanation(data.data);
-          document.getElementById('submitBtn').disabled = true;
+        } else {
+          alert(data.error || '채점 실패');
+          document.querySelectorAll('#optionsContainer input[type="radio"]').forEach(r => r.disabled = false);
         }
       } catch (error) {
         alert('제출 실패: ' + error.message);
+        document.querySelectorAll('#optionsContainer input[type="radio"]').forEach(r => r.disabled = false);
       }
     }
 
     function showExplanation(result) {
       const explanation = document.getElementById('explanation');
+      document.getElementById('explanationHeader').textContent = result.is_correct ? '✅ 정답입니다! 해설' : '❌ 오답입니다. 해설';
       document.getElementById('explanationText').textContent = result.explanation;
-      document.getElementById('keywordsText').textContent = '🏷️ ' + result.keywords.join(', ');
+      document.getElementById('keywordsText').textContent = '🏷️ ' + (result.keywords || []).join(', ');
       explanation.classList.add('show');
 
-      // 정답 표시
-      const correct = result.is_correct;
-      const correctRadio = document.querySelector(`input[value="${result.correct_answer}"]`);
+      // 정답/오답 표시 (모든 옵션 비활성화 상태로 색상만 표시)
+      document.querySelectorAll('#optionsContainer input[type="radio"]').forEach(r => r.disabled = true);
+
+      const correctRadio = document.querySelector(`#optionsContainer input[value="${result.correct_answer}"]`);
       if (correctRadio) {
-        correctRadio.closest('.option').classList.add(correct ? 'correct' : 'incorrect');
+        correctRadio.closest('.option').classList.add('correct');
+      }
+
+      if (!result.is_correct) {
+        const selectedValue = answers[currentQuestionIndex];
+        const selectedRadio = document.querySelector(`#optionsContainer input[value="${selectedValue}"]`);
+        if (selectedRadio && selectedValue !== result.correct_answer) {
+          selectedRadio.closest('.option').classList.add('incorrect');
+        }
       }
     }
 
@@ -934,16 +992,53 @@
         currentQuestionIndex++;
         displayQuestion();
       } else {
-        if (confirm('시험을 완료하시겠습니까?')) {
+        if (confirm('학습을 마치고 대시보드로 돌아가시겠습니까?')) {
           goToDashboard();
         }
       }
     }
 
+    async function toggleBookmark() {
+      const question = quizData[currentQuestionIndex];
+      const nowBookmarked = !bookmarkIds.has(question.id);
+
+      if (nowBookmarked) {
+        bookmarkIds.add(question.id);
+      } else {
+        bookmarkIds.delete(question.id);
+      }
+      updateBookmarkStar(question.id);
+
+      try {
+        await fetch(API_URL + '?action=toggle_bookmark', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: currentToken,
+            problem_id: question.id,
+            bookmarked: nowBookmarked
+          })
+        });
+      } catch (error) {
+        console.error('즐겨찾기 저장 실패:', error);
+      }
+    }
+
+    function updateBookmarkStar(questionId) {
+      const btn = document.getElementById('bookmarkBtn');
+      if (bookmarkIds.has(questionId)) {
+        btn.textContent = '★';
+        btn.style.color = '#ff9800';
+      } else {
+        btn.textContent = '☆';
+        btn.style.color = '#999';
+      }
+    }
+
     function updateButtonStates() {
       document.getElementById('prevBtn').disabled = currentQuestionIndex === 0;
-      document.getElementById('nextBtn').disabled = currentQuestionIndex === quizData.length - 1;
-      document.getElementById('submitBtn').disabled = false;
+      const isLast = currentQuestionIndex === quizData.length - 1;
+      document.getElementById('nextBtn').textContent = isLast ? '완료 ✓' : '다음 →';
     }
 
     function startTimer() {
