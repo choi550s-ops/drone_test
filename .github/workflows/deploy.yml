@@ -20,17 +20,20 @@ jobs:
       - name: 📥 코드 다운로드
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: 📤 cafe24 FTP 배포
         uses: milanmk/actions-file-deployer@master
         with:
-          remote-url: ${{ secrets.FTP_HOST }}
-          remote-username: ${{ secrets.FTP_USER }}
+          remote-protocol: ftp
+          remote-host: ${{ secrets.FTP_HOST }}
+          remote-port: 21
+          remote-user: ${{ secrets.FTP_USER }}
           remote-password: ${{ secrets.FTP_PASSWORD }}
           local-path: ./src/
           remote-path: /public_html/dronetest/
-          sftp: false
+          sync: true
+          ftp-options: --timeout=600
 
       - name: ✅ 배포 성공
         if: success()
@@ -38,20 +41,16 @@ jobs:
           echo "✅ cafe24에 배포가 완료되었습니다!"
           echo "🌐 http://staff4.cafe24.com/dronetest/"
 
-      - name: ❌ 배포 실패 - Secrets 확인
+      - name: ❌ 배포 실패
         if: failure()
         run: |
           echo "❌ 배포 실패"
           echo ""
           echo "🔍 확인사항:"
           echo "1. GitHub Secrets 확인"
-          echo "   Settings → Secrets and variables → Actions"
-          echo "   필수: FTP_HOST, FTP_USER, FTP_PASSWORD"
+          echo "   - FTP_HOST = ftp.cafe24.com"
+          echo "   - FTP_USER = staff4"
+          echo "   - FTP_PASSWORD = army9238!@"
           echo ""
           echo "2. cafe24 FTP 접근 확인"
-          echo "   호스트: ftp.cafe24.com"
-          echo "   사용자: staff4"
-          echo "   경로: /public_html/dronetest"
-          echo ""
-          echo "3. 로그 확인"
-          echo "   Actions 탭에서 실패 작업 클릭 → 로그 확인"
+          echo "3. Actions 로그에서 상세 오류 확인"
