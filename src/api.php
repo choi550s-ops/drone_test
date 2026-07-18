@@ -91,6 +91,28 @@ $quiz_data = json_decode($questions_json, true);
 $questions = $quiz_data['questions'] ?? [];
 
 /**
+ * 카테고리 목록 및 문항 수: GET /api.php?action=get_categories
+ */
+if ($action === 'get_categories' && $request_method === 'GET') {
+  $counts = [];
+  foreach ($questions as $q) {
+    $cat = $q['category'];
+    $counts[$cat] = ($counts[$cat] ?? 0) + 1;
+  }
+
+  $categories = $quiz_data['metadata']['categories'] ?? array_keys($counts);
+  $result = [];
+  foreach ($categories as $cat) {
+    $result[] = [
+      'category' => $cat,
+      'count' => $counts[$cat] ?? 0
+    ];
+  }
+
+  success_response(['categories' => $result], 'Categories retrieved');
+}
+
+/**
  * 모든 문제 조회: GET /api.php?action=get_questions
  */
 if ($action === 'get_questions' && $request_method === 'GET') {

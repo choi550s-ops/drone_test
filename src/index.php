@@ -397,6 +397,106 @@
       cursor: not-allowed;
     }
 
+    /* ========== 범주별 학습 / 전체문제보기 화면 ========== */
+    .category-screen, .browse-screen {
+      display: none;
+      background: white;
+      border-radius: 10px;
+      padding: 30px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .category-screen.show, .browse-screen.show {
+      display: block;
+    }
+
+    .category-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .browse-toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin: 20px 0;
+      flex-wrap: wrap;
+    }
+
+    .browse-toolbar select, .browse-toolbar input {
+      padding: 10px 14px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .browse-item {
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+
+    .browse-item .b-meta {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .badge-category {
+      background: #e3e8ff;
+      color: #4353c9;
+    }
+
+    .badge-frequent {
+      background: #fff3e0;
+      color: #e65100;
+    }
+
+    .browse-item .b-question {
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 10px;
+    }
+
+    .browse-item .b-options {
+      list-style: none;
+      margin-bottom: 10px;
+    }
+
+    .browse-item .b-options li {
+      padding: 6px 10px;
+      border-radius: 6px;
+      color: #555;
+    }
+
+    .browse-item .b-options li.b-correct {
+      background: #e8f5e9;
+      color: #2e7d32;
+      font-weight: bold;
+    }
+
+    .browse-item .b-explanation {
+      background: #fff3e0;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #666;
+      border-left: 4px solid #ff9800;
+    }
+
     .loading {
       text-align: center;
       padding: 40px;
@@ -581,6 +681,38 @@
         </div>
       </div>
     </div>
+
+    <!-- ========== 범주별 학습 화면 ========== -->
+    <div class="category-screen" id="categoryScreen">
+      <button class="logout-btn" onclick="goToDashboard()" style="margin-bottom: 20px;">← 대시보드로</button>
+      <h1>🗂️ 범주별 학습</h1>
+      <p style="color: #666; margin-top: 8px;">카테고리를 선택하면 해당 범주의 문제만 모아서 풀 수 있습니다.</p>
+      <div class="category-list" id="categoryList">
+        <div class="loading"><div class="spinner"></div><p>불러오는 중...</p></div>
+      </div>
+    </div>
+
+    <!-- ========== 전체 문제 보기 화면 ========== -->
+    <div class="browse-screen" id="browseScreen">
+      <button class="logout-btn" onclick="goToDashboard()" style="margin-bottom: 20px;">← 대시보드로</button>
+      <h1>📖 전체 문제 보기</h1>
+      <p style="color: #666; margin-top: 8px;">정답과 해설을 바로 확인하며 학습할 수 있습니다. 엉뚱한 범위를 공부하지 않도록 실제 시험 범위(항공법규·항공기상·항공역학·비행운용이론)에 맞춰 검수된 문제입니다.</p>
+
+      <div class="browse-toolbar">
+        <select id="browseCategoryFilter" onchange="renderBrowseList()">
+          <option value="">전체 카테고리</option>
+        </select>
+        <label style="font-size: 14px; color: #555;">
+          <input type="checkbox" id="browseFrequentOnly" onchange="renderBrowseList()"> 빈출만 보기
+        </label>
+        <input type="text" id="browseSearch" placeholder="키워드 검색..." oninput="renderBrowseList()" style="flex: 1; min-width: 180px;">
+        <span id="browseCount" style="color: #999; font-size: 13px;"></span>
+      </div>
+
+      <div id="browseList">
+        <div class="loading"><div class="spinner"></div><p>불러오는 중...</p></div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -670,9 +802,12 @@
     }
 
     // ========== 문제풀이 ==========
-    async function startQuiz(type, count) {
+    async function startQuiz(type, count, category) {
       try {
         let url = API_URL + '?action=random_quiz&count=' + count;
+        if (category) {
+          url += '&category=' + encodeURIComponent(category);
+        }
 
         const response = await fetch(url);
         const data = await response.json();
@@ -688,11 +823,14 @@
         quizStartTime = Date.now();
 
         document.getElementById('dashboard').style.display = 'none';
+        document.getElementById('categoryScreen').classList.remove('show');
+        document.getElementById('browseScreen').classList.remove('show');
         document.getElementById('quizScreen').classList.add('show');
         document.getElementById('totalQuestions').textContent = quizData.length;
 
         document.getElementById('quizTitle').textContent =
-          type === 'random' ? '모의고사' : type === 'weak' ? '약점 복습' : '즐겨찾기';
+          category ? ('🗂️ ' + category) :
+          (type === 'random' ? '모의고사' : type === 'weak' ? '약점 복습' : '즐겨찾기');
 
         displayQuestion();
         startTimer();
@@ -824,6 +962,8 @@
     function goToDashboard() {
       clearInterval(timerInterval);
       document.getElementById('quizScreen').classList.remove('show');
+      document.getElementById('categoryScreen').classList.remove('show');
+      document.getElementById('browseScreen').classList.remove('show');
       document.getElementById('dashboard').style.display = 'block';
       loadStats();
     }
@@ -853,13 +993,121 @@
       }
     });
 
-    // 더미 함수들 (추후 구현 필요)
-    function showCategoryMenu() {
-      alert('카테고리별 학습 기능은 곧 추가될 예정입니다');
+    // ========== 범주별 학습 ==========
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
     }
 
-    function showAllQuestions() {
-      alert('전체 문제 보기 기능은 곧 추가될 예정입니다');
+    async function showCategoryMenu() {
+      document.getElementById('dashboard').style.display = 'none';
+      document.getElementById('categoryScreen').classList.add('show');
+
+      const listEl = document.getElementById('categoryList');
+      listEl.innerHTML = '<div class="loading"><div class="spinner"></div><p>불러오는 중...</p></div>';
+
+      try {
+        const response = await fetch(API_URL + '?action=get_categories');
+        const data = await response.json();
+
+        if (!data.success) {
+          listEl.innerHTML = '<p>카테고리를 불러오지 못했습니다.</p>';
+          return;
+        }
+
+        const icons = {
+          '항공법규': '⚖️', '기체학': '🚁', '비행원리': '🌀',
+          '안전관리': '🦺', '기체정비': '🔧', '전자/통신': '📡', '기상학': '🌤️'
+        };
+
+        listEl.innerHTML = data.data.categories.map(c => `
+          <div class="menu-item" onclick="startQuiz('category', ${c.count}, '${escapeHtml(c.category)}')">
+            <div class="icon">${icons[c.category] || '📘'}</div>
+            <div class="title">${escapeHtml(c.category)}</div>
+            <div class="description">${c.count}문제 전체 풀이</div>
+          </div>
+        `).join('');
+      } catch (error) {
+        listEl.innerHTML = '<p>오류: ' + error.message + '</p>';
+      }
+    }
+
+    // ========== 전체 문제 보기 ==========
+    let allQuestionsCache = null;
+
+    async function showAllQuestions() {
+      document.getElementById('dashboard').style.display = 'none';
+      document.getElementById('browseScreen').classList.add('show');
+
+      if (!allQuestionsCache) {
+        const listEl = document.getElementById('browseList');
+        listEl.innerHTML = '<div class="loading"><div class="spinner"></div><p>불러오는 중...</p></div>';
+
+        try {
+          const response = await fetch(API_URL + '?action=get_questions');
+          const data = await response.json();
+
+          if (!data.success) {
+            listEl.innerHTML = '<p>문제를 불러오지 못했습니다.</p>';
+            return;
+          }
+
+          allQuestionsCache = data.data.questions;
+
+          const categories = [...new Set(allQuestionsCache.map(q => q.category))];
+          const filterEl = document.getElementById('browseCategoryFilter');
+          filterEl.innerHTML = '<option value="">전체 카테고리</option>' +
+            categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+        } catch (error) {
+          listEl.innerHTML = '<p>오류: ' + error.message + '</p>';
+          return;
+        }
+      }
+
+      renderBrowseList();
+    }
+
+    function renderBrowseList() {
+      if (!allQuestionsCache) return;
+
+      const category = document.getElementById('browseCategoryFilter').value;
+      const frequentOnly = document.getElementById('browseFrequentOnly').checked;
+      const keyword = document.getElementById('browseSearch').value.trim().toLowerCase();
+
+      let filtered = allQuestionsCache;
+      if (category) filtered = filtered.filter(q => q.category === category);
+      if (frequentOnly) filtered = filtered.filter(q => q.frequent);
+      if (keyword) {
+        filtered = filtered.filter(q =>
+          q.question.toLowerCase().includes(keyword) ||
+          (q.keywords || []).some(k => k.toLowerCase().includes(keyword))
+        );
+      }
+
+      document.getElementById('browseCount').textContent = filtered.length + '개 문제';
+
+      const listEl = document.getElementById('browseList');
+      if (filtered.length === 0) {
+        listEl.innerHTML = '<p style="color: #999;">조건에 맞는 문제가 없습니다.</p>';
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(q => `
+        <div class="browse-item">
+          <div class="b-meta">
+            <span class="badge badge-category">${escapeHtml(q.category)}</span>
+            ${q.frequent ? '<span class="badge badge-frequent">⭐ 빈출</span>' : ''}
+          </div>
+          <div class="b-question">${escapeHtml(q.question)}</div>
+          <ul class="b-options">
+            ${Object.entries(q.options).map(([k, v]) => `
+              <li class="${k === q.correct ? 'b-correct' : ''}">${k}. ${escapeHtml(v)}${k === q.correct ? ' ✓' : ''}</li>
+            `).join('')}
+          </ul>
+          <div class="b-explanation">💡 ${escapeHtml(q.explanation)}</div>
+        </div>
+      `).join('');
     }
   </script>
 </body>
